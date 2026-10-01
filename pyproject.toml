@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "reflex-ddns-livekit-audio-chat"
+version = "0.1.0"
+description = "Reflex audio rooms on a self-hosted (embedded) open-source LiveKit server, for *.reflex-ddns.com"
+authors = ["Milo Chen"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "reflex_ddns_livekit_audio_chat"}]
+
+[tool.poetry.dependencies]
+python = "~3.11"
+reflex = "0.8.24.post1"
+livekit-api = "^1.0"
+aiohttp = "^3.9"
+httpx = "*"
+python-dotenv = "^1.2.1"
+
+[tool.poetry.group.dev.dependencies]
+playwright = "^1.42.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
