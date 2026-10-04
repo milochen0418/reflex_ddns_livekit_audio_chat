@@ -132,22 +132,26 @@ Other *.reflex-ddns.com apps open a call in a dialog with [reflex_ddns_auth](htt
 from reflex_ddns_auth.intent import Intent, intent_host
 
 rx.button("Call", on_click=Intent.start(
-    "livekit", "call.join",
+    None, "call.join",              # None: whichever installed app provides call.join
     on_result=MyState.call_ended,   # {"status": "ended", "room": <room>} after hang up
-    on_cancel=MyState.call_ended,   # {} when the dialog is closed instead
-    room=call_id, title="Design Review", user="amy@example.com", name="Amy",
+    on_cancel=MyState.call_ended,   # {"reason": "closed" | "cancel" | "replaced" | ..., ...} otherwise
+    private={"room": call_id},      # posted to the dialog, kept out of the URL
+    keep_alive=True,                # other dialogs minimize the call instead of ending it
+    single=True,                    # one call at a time: a new call closes the previous one
+    label="Call · Design Review",   # shown in the tray while minimized
+    title="Design Review", user="amy@example.com", name="Amy",
 ))
 intent_host()  # once per page; delegates microphone + autoplay to the dialog
 ```
 
 | Param | Meaning |
 |-------|---------|
-| `room` | Call id, used as the LiveKit room name. Everyone opening the same `room` is in the same call. Use an unguessable id for private calls: the rooms themselves have no access control. |
+| `room` | Required. Call id, used as the LiveKit room name. Everyone opening the same `room` is in the same call. Use an unguessable id for private calls: the rooms themselves have no access control. Pass it with `private=` so it stays out of URLs and logs. |
 | `title` | Shown instead of the id (e.g. the chat room's name). |
 | `name` | Display name of the participant. |
 | `user` | Stable account id (e.g. an email), the base of the participant identity. |
 
-Any app that implements `call.join` with these params and events can replace this one for callers. relack picks the app with `RELACK_CALL_APP`.
+The params are declared on the intent (`params=`, `required=("room",)`): a call without `room` shows an error, and Close answers `cancel` with `{"error": ...}`. The app also publishes this contract at `/_ddns_intent/manifest`, which the re-ddns intent registry reads, so callers find this app without naming it. Any app that implements `call.join` with these params and events can replace this one.
 
 ## 🧪 Tests
 

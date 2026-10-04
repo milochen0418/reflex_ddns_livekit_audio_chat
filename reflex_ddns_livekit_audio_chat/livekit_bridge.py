@@ -15,7 +15,7 @@ from reflex_ddns_auth.intent import IntentPage
 from reflex_ddns_livekit_audio_chat import livekit_server
 
 # Bump when assets/livekit_bridge.js changes so browsers drop the cached copy.
-_BRIDGE_JS_VERSION = "2"
+_BRIDGE_JS_VERSION = "3"
 # Hidden <input> the JS bridge writes room updates into.
 BRIDGE_INPUT_ID = "js_msg_input"
 

@@ -20,7 +20,7 @@ The `run_test.py` script should:
 |-------|----------------|
 | `smoke_home` | Lobby renders and the embedded LiveKit server reports `running`. |
 | `two_users_audio` | Two browsers (fake microphones) join one room, see each other, receive each other's audio over the published ICE port, mute/leave updates. |
-| `call_intent` | The `call.join` intent opened by a fake caller page (cross-origin iframe): two callers join under their names, see the title, hear each other; hang up posts `result`, a broken call posts `cancel`. |
+| `call_intent` | The `call.join` intent opened by a fake caller page (cross-origin iframe): two callers join under their names, see the title, hear each other; hang up posts `result`; a room passed privately (postMessage after `ready`) joins without appearing in the URL; a call without `room` fails the schema and Close posts `cancel` with the error. |
 | `settings_admin` | `/settings` status, admin gate (wrong/right `ADMIN_PASSCODE`), connection info for other apps, server restart, server log. |
 
 ## Running
@@ -36,6 +36,8 @@ poetry run ./run_test_suite.sh call_intent
 
 Locally the embedded server needs a `livekit-server` binary on PATH
 (`brew install livekit` on macOS; Linux downloads it automatically).
+If the media ports are taken (e.g. by an installed `smart-app-livekit`
+container), move them: `LIVEKIT_RTC_TCP_PORT=17881 LIVEKIT_RTC_UDP_PORT=17882`.
 
 To test a deployed instance (e.g. behind re-ddns), run the script directly:
 

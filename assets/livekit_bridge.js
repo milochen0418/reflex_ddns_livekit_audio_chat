@@ -14,6 +14,12 @@
 (function () {
   if (window.livekitClient) return;
 
+  // The SDK disconnects by itself when the page goes away (reload, close);
+  // that is not a dropped connection, so don't report it to the backend.
+  let leaving = false;
+  window.addEventListener('beforeunload', () => { leaving = true; });
+  window.addEventListener('pagehide', () => { leaving = true; });
+
   // The backend hands us its own URL (ws://localhost:8000 locally,
   // wss://<sub>.reflex-ddns.com behind re-ddns); the SDK appends /rtc.
   function signalUrl(url) {
@@ -98,7 +104,7 @@
         })
         .on(E.Disconnected, () => {
           // Ignore the event caused by our own disconnect() (leave / rejoin).
-          if (this.room !== room) return;
+          if (this.room !== room || leaving) return;
           this.room = null;
           this.stopAudioVisualizer();
           this.sendStatus({ status: 'Disconnected', participants: [] });

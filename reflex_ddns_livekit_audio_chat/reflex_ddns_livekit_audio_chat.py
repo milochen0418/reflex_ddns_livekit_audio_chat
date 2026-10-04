@@ -517,7 +517,8 @@ def call_panel() -> rx.Component:
                 ),
                 class_name="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-100 shrink-0",
             ),
-            class_name="flex items-center justify-between gap-3 mb-4 pr-10",
+            # Room for the dialog's minimize and close buttons (top right).
+            class_name="flex items-center justify-between gap-3 mb-4 pr-20",
         ),
         rx.cond(
             LiveKitBridgeState.audio_blocked,
@@ -601,8 +602,15 @@ app.add_page(
 
 
 # Other *.reflex-ddns.com apps open calls in a dialog (DDNS Intent), e.g. relack:
-#   Intent.start("livekit", "call.join", room=<call id>, title=..., user=..., name=...)
-@intent(app, action="call.join", on_open=LiveKitBridgeState.open_call_intent, title="Audio Call")
+#   Intent.start(None, "call.join", private={"room": <call id>}, title=..., user=..., name=...)
+@intent(
+    app,
+    action="call.join",
+    on_open=LiveKitBridgeState.open_call_intent,
+    title="Audio Call",
+    params={"room": str, "title": str, "user": str, "name": str},
+    required=("room",),
+)
 def call_intent() -> rx.Component:
     return call_intent_view()
 
