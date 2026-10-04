@@ -1656,6 +1656,24 @@ db = ["alembic (>=1.15.2,<2.0)", "pydantic (>=1.10.21,<3.0)", "sqlmodel (>=0.0.2
 monitoring = ["pyleak (>=0.1.14,<1.0)"]
 
 [[package]]
+name = "reflex-ddns-auth"
+version = "0.1.0"
+description = "Shared SSO AuthState for Reflex apps on *.reflex-ddns.com"
+optional = false
+python-versions = ">=3.11,<3.12"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+PyJWT = ">=2.8"
+reflex = ">=0.6"
+
+[package.source]
+type = "directory"
+url = "../reflex_ddns_auth"
+
+[[package]]
 name = "reflex-hosting-cli"
 version = "0.1.72"
 description = "Reflex Hosting CLI"
@@ -2215,4 +2233,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.11"
-content-hash = "4b1854e7a704f7e91e1795321ac2003482ecf5e6a7f6c615c3639682aff5f09c"
+content-hash = "063664cf6b6fc508103b9bdfedc029c167f5aeae05ed7a6e9fbcff6e1705346d"

@@ -1,4 +1,5 @@
 import reflex as rx
+from reflex_ddns_auth.intent import IntentPage, intent
 
 from reflex_ddns_livekit_audio_chat import livekit_server
 from reflex_ddns_livekit_audio_chat.livekit_bridge import LiveKitBridgeState, bind_livekit
@@ -463,6 +464,108 @@ def room_view() -> rx.Component:
     )
 
 
+def call_controls() -> rx.Component:
+    return rx.el.div(
+        rx.el.button(
+            rx.cond(
+                LiveKitBridgeState.is_muted,
+                rx.icon("mic-off", class_name="h-5 w-5"),
+                rx.icon("mic", class_name="h-5 w-5"),
+            ),
+            on_click=LiveKitBridgeState.toggle_mute,
+            title=rx.cond(LiveKitBridgeState.is_muted, "Unmute", "Mute"),
+            class_name=rx.cond(
+                LiveKitBridgeState.is_muted,
+                "p-3 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors",
+                "p-3 rounded-full bg-violet-100 text-violet-600 hover:bg-violet-200 transition-colors",
+            ),
+        ),
+        rx.el.button(
+            rx.icon("phone-off", class_name="h-5 w-5"),
+            on_click=LiveKitBridgeState.hang_up,
+            title="Hang up",
+            class_name="p-3 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors",
+        ),
+        class_name="flex items-center justify-center gap-6 pt-5 mt-5 border-t border-gray-100",
+    )
+
+
+def call_panel() -> rx.Component:
+    """The call itself, sized for the caller's dialog (no full-screen layout)."""
+    return rx.el.div(
+        rx.el.div(
+            rx.el.div(
+                rx.icon("phone-call", class_name="h-5 w-5 text-violet-500 shrink-0"),
+                rx.el.h2(
+                    LiveKitBridgeState.room_title,
+                    class_name="text-lg font-bold text-gray-900 truncate",
+                ),
+                class_name="flex items-center gap-2 min-w-0",
+            ),
+            rx.el.div(
+                rx.el.div(
+                    class_name=rx.cond(
+                        LiveKitBridgeState.connection_status == "Connected",
+                        "size-2 rounded-full bg-green-500",
+                        "size-2 rounded-full bg-yellow-500 animate-pulse",
+                    )
+                ),
+                rx.el.span(
+                    LiveKitBridgeState.connection_status,
+                    id="connection-status",
+                    class_name="text-xs font-medium text-gray-600",
+                ),
+                class_name="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-100 shrink-0",
+            ),
+            class_name="flex items-center justify-between gap-3 mb-4 pr-10",
+        ),
+        rx.cond(
+            LiveKitBridgeState.audio_blocked,
+            rx.el.button(
+                rx.icon("volume-2", class_name="h-5 w-5"),
+                "Click to enable audio",
+                on_click=LiveKitBridgeState.enable_audio,
+                class_name="w-full mb-4 flex items-center justify-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl py-2.5 font-semibold hover:bg-amber-100 transition-colors",
+            ),
+            rx.fragment(),
+        ),
+        rx.el.div(
+            rx.foreach(LiveKitBridgeState.participants, participant_card),
+            class_name="flex flex-col gap-2 max-h-72 overflow-y-auto",
+        ),
+        call_controls(),
+    )
+
+
+def call_intent_view() -> rx.Component:
+    """Page of the ``call.join`` intent: joins on open, hang up answers the caller."""
+    return rx.el.div(
+        LIVEKIT_UI.bridge_input(),
+        rx.cond(
+            LiveKitBridgeState.error_message != "",
+            rx.el.div(
+                error_box(LiveKitBridgeState.error_message),
+                rx.el.button(
+                    "Close",
+                    on_click=IntentPage.cancel,
+                    class_name="w-full mt-2 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200",
+                ),
+                class_name="pr-10",
+            ),
+            rx.cond(
+                LiveKitBridgeState.is_connected,
+                call_panel(),
+                rx.el.div(
+                    rx.spinner(size="2"),
+                    rx.el.span("Joining the call...", class_name="text-sm text-gray-600"),
+                    class_name="flex items-center justify-center gap-3 py-10",
+                ),
+            ),
+        ),
+        class_name="p-6 bg-white font-['Inter']",
+    )
+
+
 def index() -> rx.Component:
     return rx.el.div(
         LIVEKIT_UI.bridge_input(),
@@ -494,6 +597,15 @@ app.add_page(
     title="LiveKit Server",
     on_load=[SettingsState.on_settings_load, ServerStatusState.watch],
 )
+
+
+
+# Other *.reflex-ddns.com apps open calls in a dialog (DDNS Intent), e.g. relack:
+#   Intent.start("livekit", "call.join", room=<call id>, title=..., user=..., name=...)
+@intent(app, action="call.join", on_open=LiveKitBridgeState.open_call_intent, title="Audio Call")
+def call_intent() -> rx.Component:
+    return call_intent_view()
+
 
 # The embedded LiveKit server + the /rtc and /twirp relays to it.
 app.register_lifespan_task(livekit_server.lifespan)

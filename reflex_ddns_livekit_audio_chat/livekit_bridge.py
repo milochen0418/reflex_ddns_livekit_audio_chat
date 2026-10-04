@@ -10,6 +10,7 @@ from typing import Type
 
 import reflex as rx
 from livekit import api
+from reflex_ddns_auth.intent import IntentPage
 
 from reflex_ddns_livekit_audio_chat import livekit_server
 
@@ -35,6 +36,8 @@ class LiveKitBridgeState(rx.State):
     """State that bridges Reflex <-> LiveKit JS client running in the browser."""
 
     room_name: str = ""
+    # What the room is called in the UI: the room name, or the title an intent caller passed.
+    room_title: str = ""
     username: str = ""
     connection_status: str = "Disconnected"
     participants: list[dict[str, str | bool]] = []
@@ -63,48 +66,92 @@ class LiveKitBridgeState(rx.State):
                 self.error_message = "Username and Room Name are required."
                 return
 
-            server = await asyncio.to_thread(livekit_server.status)
-            if server["phase"] != "running":
-                detail = f": {server['message']}" if server["message"] else "."
-                self.error_message = (
-                    f"The built-in LiveKit server is {server['phase']}{detail}"
-                )
-                return
-
-            api_key, api_secret = livekit_server.api_credentials()
-            # Unique identity so two people with the same display name can coexist.
-            identity = f"{username}#{secrets.token_hex(2)}"
-            grant = api.VideoGrants(
-                room_join=True,
-                room=room_name,
-                can_publish=True,
-                can_subscribe=True,
-                can_publish_data=True,
-            )
-            token = (
-                api.AccessToken(api_key, api_secret)
-                .with_identity(identity)
-                .with_name(username)
-                .with_grants(grant)
-                .to_jwt()
-            )
-
-            self.room_name = room_name
-            self.username = username
-            self.is_connected = True
-            self.connection_status = "Connecting..."
-            self.is_muted = False
-            self.audio_blocked = False
-            self.participants = []
-
-            args = ", ".join(json.dumps(a) for a in (public_ws_url(), token, BRIDGE_INPUT_ID))
-            yield rx.call_script(f"window.livekitClient.connect({args})")
+            connect = await self._connect(room_name, username, identity=username)
+            if connect is not None:
+                self.room_title = room_name
+                yield connect
         except Exception as e:
             logging.exception(f"Error joining room: {e}")
             self.error_message = f"Failed to join room: {str(e)}"
             self.is_connected = False
         finally:
             self.loading = False
+
+    async def _connect(self, room_name: str, username: str, identity: str):
+        """Mint a token and return the script that joins the browser to the room.
+
+        Returns None (with ``error_message`` set) when the server is not running.
+        """
+        server = await asyncio.to_thread(livekit_server.status)
+        if server["phase"] != "running":
+            detail = f": {server['message']}" if server["message"] else "."
+            self.error_message = f"The built-in LiveKit server is {server['phase']}{detail}"
+            return None
+
+        api_key, api_secret = livekit_server.api_credentials()
+        grant = api.VideoGrants(
+            room_join=True,
+            room=room_name,
+            can_publish=True,
+            can_subscribe=True,
+            can_publish_data=True,
+        )
+        token = (
+            api.AccessToken(api_key, api_secret)
+            # Unique identity so the same person can join twice (two tabs, two devices).
+            .with_identity(f"{identity}#{secrets.token_hex(2)}")
+            .with_name(username)
+            .with_grants(grant)
+            .to_jwt()
+        )
+
+        self.room_name = room_name
+        self.username = username
+        self.is_connected = True
+        self.connection_status = "Connecting..."
+        self.is_muted = False
+        self.audio_blocked = False
+        self.participants = []
+
+        args = ", ".join(json.dumps(a) for a in (public_ws_url(), token, BRIDGE_INPUT_ID))
+        return rx.call_script(f"window.livekitClient.connect({args})")
+
+    @rx.event
+    async def open_call_intent(self, params: dict):
+        """Entry point of the ``call.join`` intent: join ``room`` right away.
+
+        Params: ``room`` (call id, used as the LiveKit room name), ``title``
+        (shown instead of the id), ``name`` (display name) and ``user`` (stable
+        id of the caller's account, used for the participant identity).
+        """
+        room_name = params.get("room", "").strip()
+        user = params.get("user", "").strip()
+        username = params.get("name", "").strip() or user
+        self.error_message = ""
+        if not room_name or not username:
+            self.is_connected = False
+            self.error_message = "The call is missing its room or your name."
+            return
+        self.loading = True
+        yield
+        try:
+            connect = await self._connect(room_name, username, identity=user or username)
+            if connect is not None:
+                self.room_title = params.get("title", "").strip() or room_name
+                yield connect
+        except Exception as e:
+            logging.exception(f"Error joining call: {e}")
+            self.error_message = f"Failed to join the call: {str(e)}"
+            self.is_connected = False
+        finally:
+            self.loading = False
+
+    @rx.event
+    def hang_up(self):
+        """Leave the call and tell the intent caller that it ended."""
+        room_name = self.room_name
+        yield from self.leave_room()
+        yield IntentPage.finish({"status": "ended", "room": room_name})
 
     @rx.event
     def leave_room(self):
@@ -158,6 +205,9 @@ class LiveKitBridgeState(rx.State):
             if "status" in data:
                 self.connection_status = data["status"]
                 if data["status"] == "Disconnected":
+                    # Our own leave/disconnect is not reported, so this one was unexpected.
+                    if self.is_connected:
+                        self.error_message = "Disconnected from the room."
                     self.is_connected = False
 
             if "participants" in data:

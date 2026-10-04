@@ -16,6 +16,7 @@ This is the self-hosted sibling of [reflex_livekit_audio_chat](https://github.co
 - **Audio room**: participant list with speaking indicator, live volume bars and who is muted; mute/unmute; leave; copy invite link.
 - **Robust audio**: remote audio elements stay in the DOM, a *Click to enable audio* button appears when the browser blocks autoplay, and you join listen-only if there is no microphone.
 - **Embedded LiveKit server**: downloaded (Linux), started, supervised and restarted by the app itself; API keys generated on first start.
+- **Calls for other apps**: the `call.join` [DDNS Intent](#-calls-from-other-apps-ddns-intent-calljoin) lets apps like relack open a call in a dialog.
 - **`/settings`**: server status for everyone; with `ADMIN_PASSCODE`, the values other apps need (URL, API key/secret), a media IP override, restart, and the server log.
 - **No CDN at runtime**: `livekit-client` is vendored in `assets/`, avatars are generated locally.
 
@@ -123,6 +124,31 @@ token = (
 # Browser: new LivekitClient.Room().connect("wss://livekit.reflex-ddns.com", token)
 ```
 
+## 📞 Calls from other apps (DDNS Intent `call.join`)
+
+Other *.reflex-ddns.com apps open a call in a dialog with [reflex_ddns_auth](https://github.com/milochen0418/reflex_ddns_auth)'s intents. The dialog loads `/intent/call-join`, which joins the LiveKit room right away and answers the caller when the user hangs up:
+
+```python
+from reflex_ddns_auth.intent import Intent, intent_host
+
+rx.button("Call", on_click=Intent.start(
+    "livekit", "call.join",
+    on_result=MyState.call_ended,   # {"status": "ended", "room": <room>} after hang up
+    on_cancel=MyState.call_ended,   # {} when the dialog is closed instead
+    room=call_id, title="Design Review", user="amy@example.com", name="Amy",
+))
+intent_host()  # once per page; delegates microphone + autoplay to the dialog
+```
+
+| Param | Meaning |
+|-------|---------|
+| `room` | Call id, used as the LiveKit room name. Everyone opening the same `room` is in the same call. Use an unguessable id for private calls: the rooms themselves have no access control. |
+| `title` | Shown instead of the id (e.g. the chat room's name). |
+| `name` | Display name of the participant. |
+| `user` | Stable account id (e.g. an email), the base of the participant identity. |
+
+Any app that implements `call.join` with these params and events can replace this one for callers. relack picks the app with `RELACK_CALL_APP`.
+
 ## 🧪 Tests
 
 Playwright suites live in `testcases/` (see [testcases/README.md](testcases/README.md)):
@@ -131,6 +157,7 @@ Playwright suites live in `testcases/` (see [testcases/README.md](testcases/READ
 poetry run ./run_test_suite.sh smoke_home        # lobby + server running + /rtc relay
 poetry run ./run_test_suite.sh two_users_audio   # 2 browsers hear each other, mute/leave sync
 ADMIN_PASSCODE=test-pass poetry run ./run_test_suite.sh settings_admin
+poetry run ./run_test_suite.sh call_intent       # call.join opened by a fake caller app
 ```
 
 `two_users_audio` uses Chromium's fake microphone. It checks that inbound audio bytes keep growing and prints the selected ICE pair, so you can see which server port carries the audio.

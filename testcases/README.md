@@ -20,6 +20,7 @@ The `run_test.py` script should:
 |-------|----------------|
 | `smoke_home` | Lobby renders and the embedded LiveKit server reports `running`. |
 | `two_users_audio` | Two browsers (fake microphones) join one room, see each other, receive each other's audio over the published ICE port, mute/leave updates. |
+| `call_intent` | The `call.join` intent opened by a fake caller page (cross-origin iframe): two callers join under their names, see the title, hear each other; hang up posts `result`, a broken call posts `cancel`. |
 | `settings_admin` | `/settings` status, admin gate (wrong/right `ADMIN_PASSCODE`), connection info for other apps, server restart, server log. |
 
 ## Running
@@ -30,6 +31,7 @@ Use the repo-level runner (it manages starting/stopping the Reflex server and co
 poetry run ./run_test_suite.sh smoke_home
 poetry run ./run_test_suite.sh two_users_audio
 ADMIN_PASSCODE=test-pass poetry run ./run_test_suite.sh settings_admin
+poetry run ./run_test_suite.sh call_intent
 ```
 
 Locally the embedded server needs a `livekit-server` binary on PATH
